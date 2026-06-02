@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Course</title>
+    <!-- Link to external CSS (to be created later) -->
+    <link rel="stylesheet" href="static/add_course_style.css">
+</head>
+<body>
+    <header>
+        <h1>Course Enrollment System</h1>
+    </header>
+
+    <main>
+        <!-- Left side: Course Search -->
+        <section id="course-search-section">
+            <h2>Search for Courses</h2>
+            <input type="text" id="search-box" placeholder="Search by course code or name (e.g., CS 171)">
+            <div id="search-results"></div>
+        </section>
+
+        <!-- Right side: Current Cart -->
+<section id="cart-section">
+    <h2>Current Cart</h2>
+    <p id="cart-empty-message">Your cart is currently empty.</p>
+
+    <ul id="cart-list"></ul>
+
+    <!-- Day Filters -->
+    <div id="day-filters">
+        <h3>Preferred Days</h3>
+        <label><input type="checkbox" value="M" checked> Monday</label>
+        <label><input type="checkbox" value="T" checked> Tuesday</label>
+        <label><input type="checkbox" value="W" checked> Wednesday</label>
+        <label><input type="checkbox" value="R" checked> Thursday</label>
+        <label><input type="checkbox" value="F" checked> Friday</label>
+    </div>
+
+
+    <div id="time-filters">
+        <h3>Preferred Time Range</h3>
+
+        <!-- Top labels -->
+        <div class="time-header">
+            <span id="range-start">Start</span>
+            <span id="range-end">End</span>
+        </div>
+
+        <!-- Hour labels -->
+        <div class="hour-labels">
+            <span>8AM</span><span>9AM</span><span>10AM</span><span>11AM</span>
+            <span>12PM</span><span>1PM</span><span>2PM</span><span>3PM</span>
+            <span>4PM</span><span>5PM</span><span>6PM</span><span>7PM</span>
+        </div>
+
+        <!-- Slider -->
+        <div class="range-slider">
+            <input type="range" id="min-range" min="8" max="19" value="8">
+            <input type="range" id="max-range" min="8" max="19" value="19">
+            
+            <input type="hidden" id="start-time" value="8">
+            <input type="hidden" id="end-time" value="19">
+            <div class="slider-track"></div>
+            <div class="range-highlight"></div>
+        </div>
+    </div>
+
+
+
+
+    <br>
+
+    <button id="finish-btn" disabled>Finish and Generate Schedule</button>
+</section>
+
+    </main>
+
+    <!-- Link to external JavaScript (to be created later) -->
+    <script src="static/add_course_script.js"></script>
+</body>
+</html>
