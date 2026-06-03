@@ -10,13 +10,13 @@ CORS(app)
 import json
 import psycopg2
 
-def get_db_connection():
-    return psycopg2.connect(
-        dbname="schedule_db",
-        user="batzolboo",
-        host="localhost",
-        port="5432"
-    )
+import os
+import psycopg2
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+conn = psycopg2.connect(DATABASE_URL)
+cur = conn.cursor()
 
 # ------------------------
 # Helper functions
