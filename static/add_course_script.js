@@ -169,8 +169,8 @@ finishBtn.addEventListener('click', async () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            cart: cart.map(c => c.id)
-        })
+          cart: cart.map((c, i) => c.id ?? i)
+      })
     });
 
     const result = await response.json();
