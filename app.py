@@ -157,7 +157,47 @@ def generate():
     data = request.json
     cart_ids = data.get("cart", [])
 
-    courses = [ALL_DATA[i] for i in cart_ids if i < len(ALL_DATA)]
+    start_time = data.get("startTime")
+    end_time = data.get("endTime")
+    checked_days = set(data.get("days", []))
+
+    def filter_section(sec):
+        parsed = parse_time_range(sec["time"])
+        if not parsed:
+            return False
+
+        if start_time is not None and end_time is not None:
+            if parsed["start"] < start_time or parsed["end"] > end_time:
+                return False
+
+        if checked_days:
+            sec_days = set(sec["days"])
+            if not sec_days.intersection(checked_days):
+                return False
+
+        return True
+
+    courses = []
+
+    for i in cart_ids:
+        if i >= len(ALL_DATA):
+            continue
+
+        course = ALL_DATA[i]
+
+        new_course = {
+            "subject": course["subject"],
+            "course_number": course["course_number"],
+            "course_title": course["course_title"],
+            "components": {}
+        }
+
+        for t, sections in course["components"].items():
+            filtered = [s for s in sections if filter_section(s)]
+            if filtered:
+                new_course["components"][t] = filtered
+
+        courses.append(new_course)
 
     schedules = generate_schedules(courses)
 
