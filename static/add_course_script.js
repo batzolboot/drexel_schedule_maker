@@ -137,8 +137,11 @@ finishBtn.addEventListener('click', async () => {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            cart: cart.map(c => c.id)
-        })
+          cart: cart.map(c => c.id),
+          startTime: startTime,
+          endTime: endTime,
+          days: checkedDays
+      })
     });
 
     const result = await response.json();
