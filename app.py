@@ -1,19 +1,23 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import json
+import os
 
 app = Flask(__name__)
 CORS(app)
 
 # ------------------------
-# Load JSON
+# Load JSON safely (Render-friendly)
 # ------------------------
-with open("all_data_combined.json", "r") as f:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_PATH = os.path.join(BASE_DIR, "all_data_combined.json")
+
+with open(JSON_PATH, "r", encoding="utf-8") as f:
     ALL_DATA = json.load(f)
 
 
 # ------------------------
-# Time parser (FIXED for lowercase am/pm)
+# TIME PARSER
 # ------------------------
 def parse_time_range(time_str):
     if not time_str or "-" not in time_str:
@@ -31,15 +35,12 @@ def parse_time_range(time_str):
 
         return h + m / 60
 
-    start_str, end_str = time_str.split("-")
-    return {
-        "start": convert(start_str),
-        "end": convert(end_str)
-    }
+    start, end = time_str.split("-")
+    return {"start": convert(start), "end": convert(end)}
 
 
 # ------------------------
-# Conflict check
+# CONFLICT CHECK
 # ------------------------
 def has_conflict(a, b):
     if not set(a["days"]).intersection(set(b["days"])):
@@ -48,11 +49,13 @@ def has_conflict(a, b):
 
 
 # ------------------------
-# Build combos (WORKS WITH YOUR STRUCTURE)
+# BUILD COMBOS
 # ------------------------
 def build_course_combos(course):
     result = []
-    types = list(course["components"].keys())
+    components = course.get("components", {})
+
+    types = [t for t in components if components[t]]
 
     def backtrack(i, current):
         if i == len(types):
@@ -60,9 +63,8 @@ def build_course_combos(course):
             return
 
         t = types[i]
-        sections = course["components"].get(t, [])
 
-        for sec in sections:
+        for sec in components[t]:
             parsed = parse_time_range(sec["time"])
             if not parsed:
                 continue
@@ -86,34 +88,33 @@ def build_course_combos(course):
 
 
 # ------------------------
-# Schedule generator
+# SCHEDULE GENERATOR
 # ------------------------
 def generate_schedules(courses):
-    MAX_RESULTS = 300
+    MAX = 300
     results = []
 
-    combos_per_course = [build_course_combos(c) for c in courses]
-
-    sorted_courses = sorted(enumerate(combos_per_course), key=lambda x: len(x[1]))
+    combos = [build_course_combos(c) for c in courses]
+    sorted_courses = sorted(enumerate(combos), key=lambda x: len(x[1]))
 
     current = []
 
-    def backtrack(index):
-        if len(results) >= MAX_RESULTS:
+    def backtrack(i):
+        if len(results) >= MAX:
             return
 
-        if index == len(sorted_courses):
+        if i == len(sorted_courses):
             results.append(current[:])
             return
 
-        _, combos = sorted_courses[index]
+        _, course_combos = sorted_courses[i]
 
-        for combo in combos:
+        for combo in course_combos:
             conflict = False
 
-            for new_class in combo:
+            for new in combo:
                 for existing in current:
-                    if has_conflict(new_class, existing):
+                    if has_conflict(new, existing):
                         conflict = True
                         break
                 if conflict:
@@ -121,7 +122,7 @@ def generate_schedules(courses):
 
             if not conflict:
                 current.extend(combo)
-                backtrack(index + 1)
+                backtrack(i + 1)
                 for _ in combo:
                     current.pop()
 
@@ -137,15 +138,15 @@ def home():
     return render_template("index.html")
 
 
-@app.route("/courses", methods=["GET"])
-def get_courses():
+@app.route("/courses")
+def courses():
     return jsonify([
         {
             "id": i,
             "subject": c["subject"],
             "course_number": c["course_number"],
             "course_title": c["course_title"],
-            "credits": c.get("credits", "")
+            "components": c["components"]
         }
         for i, c in enumerate(ALL_DATA)
     ])
@@ -154,21 +155,9 @@ def get_courses():
 @app.route("/generate-schedules", methods=["POST"])
 def generate():
     data = request.json
-    cart_ids = set(data.get("cart", []))
+    cart_ids = data.get("cart", [])
 
-    courses = []
-
-    for i, c in enumerate(ALL_DATA):
-        if i not in cart_ids:
-            continue
-
-        courses.append({
-            "id": i,
-            "subject": c["subject"],
-            "course_number": c["course_number"],
-            "course_title": c["course_title"],
-            "components": c["components"]
-        })
+    courses = [ALL_DATA[i] for i in cart_ids if i < len(ALL_DATA)]
 
     schedules = generate_schedules(courses)
 
@@ -179,6 +168,5 @@ def generate():
 
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
