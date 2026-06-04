@@ -1,36 +1,26 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+import json
 
 app = Flask(__name__)
 CORS(app)
 
 # ------------------------
-# Load course data
+# Load JSON data ONCE
 # ------------------------
-import json
-import psycopg2
-
-import os
-import psycopg2
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-conn = psycopg2.connect(DATABASE_URL)
-cur = conn.cursor()
+with open("all_data_combined.json", "r") as f:
+    ALL_DATA = json.load(f)
 
 # ------------------------
 # Helper functions
 # ------------------------
-
 def parse_time_range(time_str):
     if not time_str or "-" not in time_str:
         return None
 
     def convert(t):
         time, ampm = t.strip().split(" ")
-        h, m = time.split(":")
-        h = int(h)
-        m = int(m)
+        h, m = map(int, time.split(":"))
 
         if ampm.lower() == "pm" and h != 12:
             h += 12
@@ -47,12 +37,8 @@ def parse_time_range(time_str):
 
 
 def has_conflict(a, b):
-    days_a = set(a["days"])
-    days_b = set(b["days"])
-
-    if not days_a.intersection(days_b):
+    if not set(a["days"]).intersection(set(b["days"])):
         return False
-
     return a["start"] < b["end"] and a["end"] > b["start"]
 
 
@@ -91,19 +77,13 @@ def build_course_combos(course):
     return result
 
 
-# ------------------------
-# Schedule generator
-# ------------------------
-def generate_schedules(cart):
+def generate_schedules(courses):
     MAX_RESULTS = 300
     results = []
 
-    combos_per_course = [build_course_combos(c) for c in cart]
+    combos_per_course = [build_course_combos(c) for c in courses]
 
-    sorted_courses = sorted(
-        enumerate(combos_per_course),
-        key=lambda x: len(x[1])
-    )
+    sorted_courses = sorted(enumerate(combos_per_course), key=lambda x: len(x[1]))
 
     current = []
 
@@ -139,107 +119,52 @@ def generate_schedules(cart):
 
 
 # ------------------------
-# API ROUTES
+# ROUTES
 # ------------------------
-
 @app.route("/")
 def home():
     return render_template("index.html")
 
+
 @app.route("/courses", methods=["GET"])
 def get_courses():
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT id, subject, course_number, course_title, credits
-        FROM courses
-    """)
-
-    rows = cur.fetchall()
-
-    result = []
-    for r in rows:
-        result.append({
-            "id": r[0],
-            "subject": r[1],
-            "course_number": r[2],
-            "course_title": r[3],
-            "credits": r[4]
-        })
-
-    cur.close()
-    conn.close()
-
-    return jsonify(result)
+    return jsonify([
+        {
+            "id": c["id"],
+            "subject": c["subject"],
+            "course_number": c["course_number"],
+            "course_title": c["course_title"],
+            "credits": c.get("credits", 0)
+        }
+        for c in ALL_DATA
+    ])
 
 
 @app.route("/generate-schedules", methods=["POST"])
 def generate():
-    conn = get_db_connection()
-    cur = conn.cursor()
-
     data = request.json
-    cart_ids = data.get("cart", [])  # frontend sends course IDs now
+    cart_ids = set(data.get("cart", []))
 
     courses = []
 
-    # ------------------------
-    # STEP 1: Load full course data from DB
-    # ------------------------
-    for course_id in cart_ids:
-        cur.execute("""
-            SELECT id, subject, course_number, course_title
-            FROM courses
-            WHERE id = %s
-        """, (course_id,))
-
-        course_row = cur.fetchone()
-        if not course_row:
+    for c in ALL_DATA:
+        if c["id"] not in cart_ids:
             continue
 
         course = {
-            "id": course_row[0],
-            "subject": course_row[1],
-            "course_number": course_row[2],
-            "course_title": course_row[3],
+            "id": c["id"],
+            "subject": c["subject"],
+            "course_number": c["course_number"],
+            "course_title": c["course_title"],
             "components": {}
         }
 
-        # ------------------------
-        # STEP 2: Load sections for each course
-        # ------------------------
-        cur.execute("""
-            SELECT type, crn, section, days, time, instructor, method
-            FROM sections
-            WHERE course_id = %s
-        """, (course_id,))
-
-        sections = cur.fetchall()
-
-        for sec in sections:
-            t = sec[0]
-            if t not in course["components"]:
-                course["components"][t] = []
-
-            course["components"][t].append({
-                "type": sec[0],
-                "crn": sec[1],
-                "section": sec[2],
-                "days": sec[3],
-                "time": sec[4],
-                "instructor": sec[5],
-                "method": sec[6]
-            })
+        for sec in c["sections"]:
+            t = sec["type"]
+            course["components"].setdefault(t, []).append(sec)
 
         courses.append(course)
 
-    cur.close()
-    conn.close()
-
-    # ------------------------
-    # STEP 3: Run your existing schedule generator
-    # ------------------------
     schedules = generate_schedules(courses)
 
     return jsonify({
@@ -247,42 +172,6 @@ def generate():
         "schedules": schedules[:300]
     })
 
-@app.route("/sections/<int:course_id>")
-def get_sections(course_id):
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT type, crn, section, days, time, instructor, method
-        FROM sections
-        WHERE course_id = %s
-    """, (course_id,))
-
-    rows = cur.fetchall()
-
-    result = []
-    for r in rows:
-        result.append({
-            "type": r[0],
-            "crn": r[1],
-            "section": r[2],
-            "days": r[3],
-            "time": r[4],
-            "instructor": r[5],
-            "method": r[6]
-        })
-
-    cur.close()
-    conn.close()
-
-    return jsonify(result)
-
-
-# ------------------------
-# Run server
-# ------------------------
-import os
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000)
