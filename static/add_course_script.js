@@ -131,52 +131,20 @@ finishBtn.addEventListener('click', async () => {
         return;
     }
 
-    const startTime = parseFloat(document.getElementById('start-time').value);
-    const endTime = parseFloat(document.getElementById('end-time').value);
-
-    const checkedDays = Array.from(
-        document.querySelectorAll('#day-filters input[type=checkbox]:checked')
-    ).map(cb => cb.value);
-
-    const filteredCart = cart.map(course => {
-        const newCourse = JSON.parse(JSON.stringify(course));
-        const filteredComponents = {};
-
-        Object.keys(course.components).forEach(type => {
-            filteredComponents[type] = course.components[type].filter(sec => {
-                const parsed = parseTimeRange(sec.time);
-                if (!parsed) return false;
-
-                const inTime = parsed.start >= startTime && parsed.end <= endTime;
-
-                const secDays = sec.days.split("").filter(d =>
-                    ["M", "T", "W", "R", "F"].includes(d)
-                );
-
-                const inDays =
-                    checkedDays.length === 0 ||
-                    secDays.some(d => checkedDays.includes(d));
-
-                return inTime && inDays;
-            });
-        });
-
-        newCourse.components = filteredComponents;
-        return newCourse;
-    });
-
     const response = await fetch("/generate-schedules", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json"
+        },
         body: JSON.stringify({
-          cart: cart.map((c, i) => c.id ?? i)
-      })
+            cart: cart.map(c => c.id)
+        })
     });
 
     const result = await response.json();
-    const schedules = result.schedules;
+    const schedules = result?.schedules || [];
 
-    if (!schedules || schedules.length === 0) {
+    if (schedules.length === 0) {
         alert("No valid schedules found!");
         return;
     }
