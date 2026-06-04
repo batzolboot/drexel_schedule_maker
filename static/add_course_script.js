@@ -131,20 +131,28 @@ finishBtn.addEventListener('click', async () => {
         return;
     }
 
+    const startTime = parseFloat(document.getElementById('start-time').value);
+    const endTime = parseFloat(document.getElementById('end-time').value);
+
+    const checkedDays = Array.from(
+        document.querySelectorAll('#day-filters input[type=checkbox]:checked')
+    ).map(cb => cb.value);
+
     const response = await fetch("/generate-schedules", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          cart: cart.map(c => c.id),
-          startTime: startTime,
-          endTime: endTime,
-          days: checkedDays
-      })
+            cart: cart.map(c => c.id),
+            startTime,
+            endTime,
+            days: checkedDays
+        })
     });
 
     const result = await response.json();
+
     const schedules = result?.schedules || [];
 
     if (schedules.length === 0) {
