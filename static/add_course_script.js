@@ -131,23 +131,15 @@ finishBtn.addEventListener('click', async () => {
         return;
     }
 
-    // ------------------------
-    // Read selected time filters
-    // ------------------------
     const startTime = parseFloat(document.getElementById('start-time').value);
     const endTime = parseFloat(document.getElementById('end-time').value);
 
-    // ------------------------
-    // Read checked days
-    // ------------------------
-    const checkedDays = Array.from(document.querySelectorAll('#day-filters input[type=checkbox]:checked'))
-                             .map(cb => cb.value);
+    const checkedDays = Array.from(
+        document.querySelectorAll('#day-filters input[type=checkbox]:checked')
+    ).map(cb => cb.value);
 
-    // ------------------------
-    // Filter cart courses by time AND days
-    // ------------------------
     const filteredCart = cart.map(course => {
-        const newCourse = JSON.parse(JSON.stringify(course)); // deep copy
+        const newCourse = JSON.parse(JSON.stringify(course));
         const filteredComponents = {};
 
         Object.keys(course.components).forEach(type => {
@@ -155,12 +147,15 @@ finishBtn.addEventListener('click', async () => {
                 const parsed = parseTimeRange(sec.time);
                 if (!parsed) return false;
 
-                // Check time
                 const inTime = parsed.start >= startTime && parsed.end <= endTime;
 
-                // Check days
-                const secDays = sec.days.split("").filter(d => ["M","T","W","R","F"].includes(d));
-                const inDays = secDays.some(d => checkedDays.includes(d));
+                const secDays = sec.days.split("").filter(d =>
+                    ["M", "T", "W", "R", "F"].includes(d)
+                );
+
+                const inDays =
+                    checkedDays.length === 0 ||
+                    secDays.some(d => checkedDays.includes(d));
 
                 return inTime && inDays;
             });
@@ -170,36 +165,24 @@ finishBtn.addEventListener('click', async () => {
         return newCourse;
     });
 
-    // ------------------------
-    // Generate schedules
-    // ------------------------
-    const response = await fetch(
-        "http://127.0.0.1:5000/generate-schedules",
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                cart: cart.map(c => c.id)
-            })
-        }
-    );
+    const response = await fetch("http://127.0.0.1:5000/generate-schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            cart: cart.map(c => c.id)
+        })
+    });
 
     const result = await response.json();
     const schedules = result.schedules;
 
-    if (schedules.length === 0) {
-        alert("No valid schedules found with the selected time range and days!");
+    if (!schedules || schedules.length === 0) {
+        alert("No valid schedules found!");
         return;
     }
 
-    // ------------------------
-    // Render schedules
-    // ------------------------
     renderSchedules(schedules);
 });
-
 
 // ------------------------
 // Modular render function
