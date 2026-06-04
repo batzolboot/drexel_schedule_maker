@@ -6,25 +6,27 @@ app = Flask(__name__)
 CORS(app)
 
 # ------------------------
-# Load JSON data ONCE
+# Load JSON
 # ------------------------
 with open("all_data_combined.json", "r") as f:
     ALL_DATA = json.load(f)
 
+
 # ------------------------
-# Helper functions
+# Time parser (FIXED for lowercase am/pm)
 # ------------------------
 def parse_time_range(time_str):
     if not time_str or "-" not in time_str:
         return None
 
     def convert(t):
-        time, ampm = t.strip().split(" ")
-        h, m = map(int, time.split(":"))
+        t = t.strip().lower()
+        time_part, ampm = t.split(" ")
+        h, m = map(int, time_part.split(":"))
 
-        if ampm.lower() == "pm" and h != 12:
+        if ampm == "pm" and h != 12:
             h += 12
-        if ampm.lower() == "am" and h == 12:
+        if ampm == "am" and h == 12:
             h = 0
 
         return h + m / 60
@@ -36,12 +38,18 @@ def parse_time_range(time_str):
     }
 
 
+# ------------------------
+# Conflict check
+# ------------------------
 def has_conflict(a, b):
     if not set(a["days"]).intersection(set(b["days"])):
         return False
     return a["start"] < b["end"] and a["end"] > b["start"]
 
 
+# ------------------------
+# Build combos (WORKS WITH YOUR STRUCTURE)
+# ------------------------
 def build_course_combos(course):
     result = []
     types = list(course["components"].keys())
@@ -52,7 +60,7 @@ def build_course_combos(course):
             return
 
         t = types[i]
-        sections = course["components"][t]
+        sections = course["components"].get(t, [])
 
         for sec in sections:
             parsed = parse_time_range(sec["time"])
@@ -77,6 +85,9 @@ def build_course_combos(course):
     return result
 
 
+# ------------------------
+# Schedule generator
+# ------------------------
 def generate_schedules(courses):
     MAX_RESULTS = 300
     results = []
@@ -130,13 +141,13 @@ def home():
 def get_courses():
     return jsonify([
         {
-            "id": c["id"],
+            "id": i,
             "subject": c["subject"],
             "course_number": c["course_number"],
             "course_title": c["course_title"],
-            "credits": c.get("credits", 0)
+            "credits": c.get("credits", "")
         }
-        for c in ALL_DATA
+        for i, c in enumerate(ALL_DATA)
     ])
 
 
@@ -147,23 +158,17 @@ def generate():
 
     courses = []
 
-    for c in ALL_DATA:
-        if c["id"] not in cart_ids:
+    for i, c in enumerate(ALL_DATA):
+        if i not in cart_ids:
             continue
 
-        course = {
-            "id": c["id"],
+        courses.append({
+            "id": i,
             "subject": c["subject"],
             "course_number": c["course_number"],
             "course_title": c["course_title"],
-            "components": {}
-        }
-
-        for sec in c["sections"]:
-            t = sec["type"]
-            course["components"].setdefault(t, []).append(sec)
-
-        courses.append(course)
+            "components": c["components"]
+        })
 
     schedules = generate_schedules(courses)
 
