@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 # ------------------------
-# Load JSON safely (Render-friendly)
+# Load JSON
 # ------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH = os.path.join(BASE_DIR, "all_data_combined.json")
@@ -54,7 +54,6 @@ def has_conflict(a, b):
 def build_course_combos(course):
     result = []
     components = course.get("components", {})
-
     types = [t for t in components if components[t]]
 
     def backtrack(i, current):
@@ -88,7 +87,7 @@ def build_course_combos(course):
 
 
 # ------------------------
-# SCHEDULE GENERATOR
+# GENERATE SCHEDULES
 # ------------------------
 def generate_schedules(courses):
     MAX = 300
@@ -155,13 +154,13 @@ def courses():
 @app.route("/generate-schedules", methods=["POST"])
 def generate():
     data = request.json
-    cart_ids = data.get("cart", [])
 
+    cart_ids = data.get("cart", [])
     start_time = data.get("startTime")
     end_time = data.get("endTime")
-    checked_days = set(data.get("days", []))
+    days = set(data.get("days", []))
 
-    def filter_section(sec):
+    def filter_sec(sec):
         parsed = parse_time_range(sec["time"])
         if not parsed:
             return False
@@ -170,9 +169,9 @@ def generate():
             if parsed["start"] < start_time or parsed["end"] > end_time:
                 return False
 
-        if checked_days:
+        if days:
             sec_days = set(sec["days"])
-            if not sec_days.intersection(checked_days):
+            if not sec_days.intersection(days):
                 return False
 
         return True
@@ -183,17 +182,17 @@ def generate():
         if i >= len(ALL_DATA):
             continue
 
-        course = ALL_DATA[i]
+        c = ALL_DATA[i]
 
         new_course = {
-            "subject": course["subject"],
-            "course_number": course["course_number"],
-            "course_title": course["course_title"],
+            "subject": c["subject"],
+            "course_number": c["course_number"],
+            "course_title": c["course_title"],
             "components": {}
         }
 
-        for t, sections in course["components"].items():
-            filtered = [s for s in sections if filter_section(s)]
+        for t, secs in c["components"].items():
+            filtered = [s for s in secs if filter_sec(s)]
             if filtered:
                 new_course["components"][t] = filtered
 
